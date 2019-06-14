@@ -1,0 +1,139 @@
+<!doctype html>
+
+<html>
+<head>
+	<meta charset="utf-8">
+
+	<title>OS Web Feature Service Demonstrator (visual)</title>
+	<meta name="description" content="Template Description">
+	<meta name="author" content="Template Author">
+
+	<link rel="stylesheet" href="common/styles/ol.css" />
+	<link rel="stylesheet" href="common/main.css">
+  
+</head>
+
+<body>
+
+	<!-- Add main page content here -->
+	
+	<div id="map" class="map"></div>
+	
+	<!-- End of main page content -->
+
+	<script type="text/javascript" src="common/lib/ol.js"></script> <!-- OL 5.3.0 -->
+	<script type="text/javascript" src="common/lib/proj4.js"></script>
+	<script type="text/javascript" src="common/main.js"></script>
+  
+	<script type="text/javascript">
+	
+		var projection = bng;
+		var resolutions = [896,448,224,112,56,28,14,7,3.5,1.75,0.875,0.4375,0.21875,0.109375];
+		var matrixIds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13];
+		
+		var extent = projection.getExtent();
+		
+		var loader = function(url, features, index, count, rcount) {
+			var xhr = new XMLHttpRequest();
+			 xhr.open('GET', url + '&count=' + count + '&startIndex=' + index);
+			 var onError = function() {
+				features.removeLoadedExtent(extent);
+			 }
+			 xhr.onerror = onError;
+			 xhr.onload = function() {
+			   if (xhr.status == 200) {
+					rcount = JSON.parse(xhr.responseText).features.length;
+					features.addFeatures(features.getFormat().readFeatures(xhr.responseText));
+					if (rcount == count) {
+						loader(url, features, index+count, count, rcount);
+					}
+			   } else {
+				 onError();
+			   }
+			 }
+			 xhr.send();
+		}
+
+		var wfsSource = new ol.source.Vector({
+			format: new ol.format.GeoJSON({
+				dataProjection: 'EPSG:27700'
+			}),
+			loader: function(extent, resolution, projection) {
+				 var url = config.urls.wfs +
+				  '?key='+ config.keys.datahub +
+				  '&service=WFS' +
+				  '&request=GetFeature' +
+				  '&typeNames=DistrictBuildings' +
+				  '&outputFormat=GEOJSON' +
+				  '&srsname=EPSG:27700' +
+				  '&filter=' + encodeURI('<Filter xmlns="http://www.opengis.net/fes/2.0" xmlns:gml="http://www.opengis.net/gml/3.2">\
+						<BBOX>\
+						  <ValueReference>Shape</ValueReference>\
+						  <gml:Envelope>\
+							<gml:lowerCorner>'+extent[1]+' '+extent[0]+'</gml:lowerCorner>\
+							<gml:upperCorner>'+extent[3]+' '+extent[2]+'</gml:upperCorner>\
+						  </gml:Envelope>\
+						</BBOX>\
+					</Filter>');
+				var features = wfsSource;
+				wfsSource.clear();
+				var index = 0;
+				var count = 100;
+				var rcount = 0;
+				 loader(url, wfsSource, index, count, rcount);
+			   },
+			 strategy: ol.loadingstrategy.bbox,
+			 updateWhileInteracting: true
+		  })
+		
+      var wfs = new ol.layer.Vector({
+		source: wfsSource,
+		style: new ol.style.Style({
+          stroke: new ol.style.Stroke({
+            color: 'rgba(255, 0, 0, 1.0)',
+            width: 2
+          }),
+		  fill: new ol.style.Fill({
+			color: 'rgba(0,255,255,0.2)'
+		  })
+        })
+      });
+	  
+	  var basemap = new ol.layer.Tile({
+		source: new ol.source.WMTS({
+			attributions: '&copy; <a href="http://www.ordnancesurvey.co.uk/">Ordnance Survey</a>',
+			url: config.urls.wmts+'?key='+config.keys.datahub,
+			layer: 'Road_27700',
+			matrixSet: 'EPSG:27700',
+			format: 'image/png',
+			projection: projection,
+			tileGrid: new ol.tilegrid.WMTS({
+				/* We need to somehow define the origin. This is either done via explicit declaration, or derived by default from the extent as a function of the "top left corner". */
+				// origin: [-238375, 1376256],
+				// origin: ol.extent.getTopLeft(extent),
+				extent: extent,
+				resolutions: resolutions,
+				matrixIds: matrixIds
+			}),
+			style: 'default'
+		})
+	  })
+
+      var map = new ol.Map({
+        layers: [
+			basemap,
+			wfs
+        ],
+        target: 'map',
+        view: new ol.View({
+			projection: projection,
+            center: [437290,115547],
+			resolutions: resolutions,
+			zoom: 10
+        })
+      });
+		
+	</script>
+  
+</body>
+</html>

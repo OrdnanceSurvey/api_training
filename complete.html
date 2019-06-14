@@ -1,0 +1,344 @@
+<!doctype html>
+
+<html>
+<head>
+	<meta charset="utf-8">
+
+	<title>Template Title</title>
+	<meta name="description" content="Template Description">
+	<meta name="author" content="Template Author">
+
+	<link rel="stylesheet" href="common/styles/ol.css" />
+	<link rel="stylesheet" href="common/main.css">
+	
+	<style type="text/css">
+		body {
+			margin: 0;
+			height: 100vh;
+			display: flex;
+			flex-direction: column;
+		}
+		#map {
+			flex: 1 0 auto;
+		}
+		#info {
+			border-top: 6px solid #453c90;
+			background-color: white;
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			padding: 60px 40px 20px 40px;
+		}
+
+		table, tr, th, td {
+			text-align: left;
+			border-collapse: collapse;
+			border: none;
+		}
+
+		.hidden{
+			display: none;
+		}
+		.close {
+			border: none;
+			font-size: 18px;
+			position: absolute;
+			top: 12px;
+			right: 12px;
+		}
+		.close:hover {
+			background-color: #f5f5f5;
+		}
+	</style>
+
+	<script type="text/javascript">
+		
+	</script>
+  
+</head>
+
+<body>
+
+	<!-- Add main page content here -->
+	<div id="map" class="map"></div>
+	<div id="info" class="info hidden">
+		<button class="close" onclick="closeModal()">X</button>
+		<div id="coords" class="coords"></div>
+		<h2>Flood risk details</h2>
+		<div id="wmsinfo" class="wmsinfo"></div>
+		<h2>Building details</h2>
+		<div id="wfsinfo" class="wfsinfo"></div>
+	</div>
+	<!-- End of main page content -->
+
+	<script type="text/javascript" src="common/lib/jquery-3.4.1.min.js"></script>
+	<script type="text/javascript" src="common/lib/jquery-ui.min.js"></script>
+	<script type="text/javascript" src="common/lib/ol.js"></script> <!-- OL 5.3.0 -->
+	<script type="text/javascript" src="common/lib/proj4.js"></script>
+	<script type="text/javascript" src="common/lib/ol-mapbox-style/olms.js"></script>
+	<script type="text/javascript" src="common/main.js"></script>
+  
+	<!-- Begin of Main Map creation scripts -->
+	<script type="text/javascript">
+		var projection = bng;
+		var wmtsResolutions = [896,448,224,112,56,28,14,7,3.5,1.75,0.875,0.4375,0.21875,0.109375];
+		var wmtsMatrixIds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13];
+		var vtsResolutions = [39051.31776841338,19525.65888420669,9762.829442103344,4881.414721051672,2440.707360525836,1220.353680262918,610.176840131459,305.0884200657295,152.54421003286475,76.27210501643238,38.13605250821619,19.068026254108094,9.534013127054047,4.767006563527024,2.383503281763512,1.191751640881756,0.595875820440878,0.297937910220439,0.1489689551102195,0.07448447755510974];
+		var vtsMatrixIds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19];
+		var vtsOrigin = [-9597137.348713825,4470073.533885086];
+		var tiles =  config.urls.vts+'/tile/{z}/{y}/{x}.pbf';
+		var vtsExtent = [5517.69000000041,5177.230000000447,655672.1661999999,1220308.960000001];
+		
+		var loader = function(url, features, index, count, rcount) {
+			var xhr = new XMLHttpRequest();
+			 xhr.open('GET', url + '&count=' + count + '&startIndex=' + index);
+			 var onError = function() {
+				features.removeLoadedExtent(extent);
+			 }
+			 xhr.onerror = onError;
+			 xhr.onload = function() {
+			   if (xhr.status == 200) {
+					rcount = JSON.parse(xhr.responseText).features.length;
+					features.addFeatures(features.getFormat().readFeatures(xhr.responseText));
+					if (rcount == count) {
+						loader(url, features, index+count, count, rcount);
+					}
+			   } else {
+				 onError();
+			   }
+			 }
+			 xhr.send();
+		};
+		
+		xmlhttp=new XMLHttpRequest();
+		xmlhttp.open("GET", config.urls.vts+'/resources/styles?key='+config.keys.datahub, false);
+		xmlhttp.send();
+		var style = JSON.parse(xmlhttp.responseText);
+		
+		var vtssource = new ol.source.VectorTile({
+			format: new ol.format.MVT(),
+			url: tiles + '?key=' + config.keys.datahub,
+			attributions: '&copy; <a href="http://www.ordnancesurvey.co.uk/">Ordnance Survey</a>',
+			projection: projection,
+			tileGrid: new ol.tilegrid.TileGrid({
+				extent: vtsExtent,
+				origin: vtsOrigin,
+				resolutions: vtsResolutions,
+				tileSize: [512,512]
+			})
+		});
+		
+		var vts = new ol.layer.VectorTile({
+			maxResolution: 2440.707360525836,
+			minResolution: 1.191751640881756,
+			source: vtssource
+		});
+		
+		style.layers.forEach(layer => {
+			// ol-mapbox-style doesn't like the 0 opacity for the icon colours, so we replace them here
+			if(layer.paint && layer.paint['icon-color']) {
+				layer.paint['icon-color'] = layer.paint['icon-color'].replace(',0)', ',1)');
+			};
+			if (layer['source-layer'] != 'district_buildings' &&
+			layer['source-layer'] != 'local_buildings' &&
+			layer['source-layer'] != 'surfacewater (National)' &&
+			layer['source-layer'] != 'surfacewater (Regional)' &&
+			layer['source-layer'] != 'surfacewater (Local)' &&
+			layer['source-layer'] != 'foreshore' &&
+			layer['source-layer'] != 'waterlines (National)' &&
+			layer['source-layer'] != 'waterlines (Regional)' &&
+			layer['source-layer'] != 'waterlines (District)' &&
+			layer['source-layer'] != 'waterlines (Local)') {
+				delete style.layers[style.layers.indexOf(layer)];
+			} else {
+				if(layer['source-layer'] == 'district_buildings' ||
+				layer['source-layer'] == 'local_buildings') {
+					if(layer.paint && layer.paint['fill-color']) {
+						layer.paint['fill-color'] = '#00FF00';
+					}
+				}
+				if(layer['source-layer'] == 'surfacewater (National)' ||
+				layer['source-layer'] == 'surfacewater (Regional)' ||
+				layer['source-layer'] == 'surfacewater (Local)') {
+					if(layer.paint && layer.paint['fill-color']) {
+						layer.paint['fill-color'] = '#00FFFF';
+					}
+				}
+			}
+		});
+		style.layers = style.layers.filter(function (el) {
+			return el != null;
+		});
+		
+		var styleFn = olms.stylefunction(vts, style, 'esri', vtsResolutions);
+		
+		var defraSource = new ol.source.TileWMS({
+			attributions: '&copy; <a href="https://environment.data.gov.uk">DEFRA</a>',
+			url: 'https://environment.data.gov.uk/spatialdata/risk-of-flooding-from-multiple-sources-risk-band/wms',
+			params: {
+				LAYERS: ',Risk_of_Flooding_from_Multiple_Sources_Risk_Band'
+			}
+		});
+		
+		var defra = new ol.layer.Tile({
+			source: defraSource,
+			opacity: 0.75
+		});
+		
+		var wfsSource = new ol.source.Vector({
+			format: new ol.format.GeoJSON({
+				dataProjection: 'EPSG:27700'
+			}),
+			loader: function(extent, resolution, projection) {
+				var url = config.urls.wfs +
+				'?key='+ config.keys.datahub +
+				'&service=WFS' +
+				'&request=GetFeature' +
+				'&typeNames=TopographicArea' +
+				'&outputFormat=GEOJSON' +
+				'&srsname=EPSG:27700' +
+				'&filter=' + encodeURI('<Filter xmlns="http://www.opengis.net/fes/2.0" xmlns:gml="http://www.opengis.net/gml/3.2">\
+					<And>\
+						<PropertyIsEqualTo>\
+							<PropertyName>DescriptiveGroup</PropertyName>\
+							<Literal>Building</Literal>\
+						</PropertyIsEqualTo>\
+						<BBOX>\
+							<ValueReference>Shape</ValueReference>\
+							<gml:Envelope>\
+								<gml:lowerCorner>'+extent[1]+' '+extent[0]+'</gml:lowerCorner>\
+								<gml:upperCorner>'+extent[3]+' '+extent[2]+'</gml:upperCorner>\
+							</gml:Envelope>\
+						</BBOX>\
+					</And>\
+				</Filter>');
+				var features = wfsSource;
+				wfsSource.clear();
+				var index = 0;
+				var count = 100;
+				var rcount = 0;
+				loader(url, wfsSource, index, count, rcount);
+			},
+			strategy: ol.loadingstrategy.bbox,
+			updateWhileInteracting: true
+		});
+		
+		var wfs = new ol.layer.Vector({
+			source: wfsSource,
+			style: new ol.style.Style({
+				stroke: new ol.style.Stroke({
+					color: 'rgba(255, 0, 0, 1.0)',
+					width: 2
+				}),
+				fill: new ol.style.Fill({
+					color: 'rgba(0,255,255,0.2)'
+				})
+			}),
+			maxResolution: 0.875,
+			minResolution: 0.109375
+		});
+		
+		var basemap = new ol.layer.Tile({
+			source: new ol.source.WMTS({
+				attributions: '&copy; <a href="http://www.ordnancesurvey.co.uk/">Ordnance Survey</a>',
+				url: config.urls.wmts+'?key='+config.keys.datahub,
+				layer: 'Road_27700',
+				matrixSet: 'EPSG:27700',
+				format: 'image/png',
+				projection: projection,
+				tileGrid: new ol.tilegrid.WMTS({
+					extent: projection.getExtent(),
+					resolutions: wmtsResolutions,
+					matrixIds: wmtsMatrixIds
+				}),
+				style: 'default'
+			})
+		});
+		
+		var map = new ol.Map({
+			layers: [
+				basemap,
+				defra,
+				vts,
+				wfs
+			],
+			target: 'map',
+			view: new ol.View({
+			projection: projection,
+			center: [437290,115547],
+			resolutions: wmtsResolutions,
+			zoom: 9
+			})
+		});
+		
+		var details = document.getElementById('info');
+		var coords = document.getElementById('coords');
+		var wfsinfo = document.getElementById('wfsinfo');
+		var wmsinfo = document.getElementById('wmsinfo');
+		
+		select = new ol.interaction.Select();
+		select.on('select', featureSelected);
+		map.addInteraction(select);
+		var selection = false;
+		
+		map.on('singleclick', function(event){
+			details.classList.remove('hidden');
+			coords.innerHTML = '<p>You have selected: <br />Easting: '+event.coordinate[0]+'<br />Northing: '+event.coordinate[1]+'</p><br />';
+			wmsSelected(event);
+			if (selection == false) {
+				if (map.getView().getZoom() >= 11) {
+					wfsinfo.innerText = 'No building selected.';
+				} else {
+					wfsinfo.innerText = 'Building information not available at this zoom level, please zoom in.';
+				}
+			}
+		});
+		
+		function wmsSelected(event) {
+			wmsinfo.innerHTML = '';
+			var viewResolution = /** @type {number} */ (map.getView().getResolution());
+			var url = defraSource.getGetFeatureInfoUrl(
+				event.coordinate, viewResolution, 'EPSG:27700',
+				{'INFO_FORMAT': 'text/html'}
+			);
+			if (url) {
+				document.getElementById('wmsinfo').innerHTML = '<iframe seamless src="' + url + '"></iframe>';
+			}
+		};
+		
+		function featureSelected(event) {
+			wfsinfo.innerHTML = '';
+			if(event.selected.length === 0) {
+				selection = false;
+				if (map.getView().getZoom() >= 11) {
+					wfsinfo.innerText = 'No building selected.';
+				} else {
+					wfsinfo.innerText = 'Building information not available at this zoom level, please zoom in.';
+				}
+			} else {
+				selection = true;
+				wfsinfo.classList.remove('hidden');
+				const feature = event.selected[0];
+				let table = '<table><tr><th>Property</th><th>Value</th></ht></tr>';
+				feature.getKeys().forEach(key => {
+					const value = feature.get(key);
+					if(typeof value === 'string') {
+						table += '<tr><td>' + key + '</td><td>' + value + '</td></tr>';
+					}
+				});
+				table += '</table>';
+				wfsinfo.innerHTML = table;
+			}
+		};
+		
+		function closeModal() {
+			select.getFeatures().clear();
+			document.getElementById('info').classList.add('hidden');
+		};
+		
+	</script>
+	<!-- End of Main Map creation scripts -->
+  
+</body>
+</html>
