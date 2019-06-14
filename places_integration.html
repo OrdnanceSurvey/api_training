@@ -274,7 +274,9 @@
 		var wmsinfo = document.getElementById('wmsinfo');
 		var placesinfo = document.getElementById('placesinfo');
 		
-		select = new ol.interaction.Select();
+		select = new ol.interaction.Select({
+			layers: [wfs]
+		});
 		select.on('select', featureSelected);
 		map.addInteraction(select);
 		var selection = false;
@@ -339,9 +341,7 @@
 						let response = JSON.parse(req.responseText);
 						if (typeof(response.results) != "undefined") {
 							atable = '<table><tr><th>Property</th><th>Value</th></tr>'
-							
 							response.results.forEach(function(item, i){
-								console.log(item);
 								atable += '<tr><td colspan=3>&nbsp;</td></tr>';
 								atable += '<tr><td>UPRN</td><td>' + item.DPA.UPRN + '</td></tr>';
 								atable += '<tr><td>UDPRN</td><td>' + item.DPA.UDPRN + '</td></tr>';

@@ -271,7 +271,9 @@
 		var wfsinfo = document.getElementById('wfsinfo');
 		var wmsinfo = document.getElementById('wmsinfo');
 		
-		select = new ol.interaction.Select();
+		select = new ol.interaction.Select({
+			layers: [wfs]
+		});
 		select.on('select', featureSelected);
 		map.addInteraction(select);
 		var selection = false;
