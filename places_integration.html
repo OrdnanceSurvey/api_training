@@ -4,7 +4,7 @@
 <head>
 	<meta charset="utf-8">
 
-	<title>Completed workshop example</title>
+	<title>Places integration - requires OS Places key</title>
 	<meta name="description" content="Template Description" />
 	<meta name="author" content="Template Author" />
 
@@ -65,6 +65,8 @@
 		<div id="wmsinfo" class="wmsinfo"></div>
 		<h2>Building details</h2>
 		<div id="wfsinfo" class="wfsinfo"></div>
+		<h2>Address</h2>
+		<div id="placesinfo" class="placesinfo"></div>
 	</div>
 	<!-- End of main page content -->
 	
@@ -270,6 +272,7 @@
 		var coords = document.getElementById('coords');
 		var wfsinfo = document.getElementById('wfsinfo');
 		var wmsinfo = document.getElementById('wmsinfo');
+		var placesinfo = document.getElementById('placesinfo');
 		
 		select = new ol.interaction.Select();
 		select.on('select', featureSelected);
@@ -314,6 +317,7 @@
 				selection = true;
 				wfsinfo.classList.remove('hidden');
 				const feature = event.selected[0];
+				
 				let table = '<table><tr><th>Property</th><th>Value</th></tr>';
 				feature.getKeys().forEach(key => {
 					const value = feature.get(key);
@@ -323,6 +327,36 @@
 				});
 				table += '</table>';
 				wfsinfo.innerHTML = table;
+				
+				/** The following section runs the address lookup using the building polygon we have selected. **/
+				var geojsonFormat = new ol.format.GeoJSON();
+				var geojsonFeature = geojsonFormat.writeFeatureObject(feature);
+				var req = new XMLHttpRequest();
+				req.open("POST", config.urls.places + "/polygon?key=" + config.keys.places,true);
+				req.setRequestHeader("Content-type", "application/json");
+				req.onload = function () {
+					if (req.status == 200) {
+						let response = JSON.parse(req.responseText);
+						if (typeof(response.results) != "undefined") {
+							atable = '<table><tr><th>Property</th><th>Value</th></tr>'
+							
+							response.results.forEach(function(item, i){
+								console.log(item);
+								atable += '<tr><td colspan=3>&nbsp;</td></tr>';
+								atable += '<tr><td>UPRN</td><td>' + item.DPA.UPRN + '</td></tr>';
+								atable += '<tr><td>UDPRN</td><td>' + item.DPA.UDPRN + '</td></tr>';
+								atable += '<tr><td>Address</td><td>' + item.DPA.ADDRESS + '</td></tr>';
+							})
+							atable += '</table>';
+						} else {
+							atable = 'We could not find an address for this polygon.';
+						}
+							placesinfo.innerHTML = atable;
+					}
+				}
+				req.send(JSON.stringify(geojsonFeature.geometry));
+				/** This comment completes the section running the address lookup. **/
+				
 			}
 		};
 		
