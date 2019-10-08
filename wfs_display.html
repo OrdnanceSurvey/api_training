@@ -62,8 +62,9 @@
 				 var url = config.urls.wfs +
 				  '?key='+ config.keys.datahub +
 				  '&service=WFS' +
+          '&version=2.0.0' +
 				  '&request=GetFeature' +
-				  '&typeNames=DistrictBuildings' +
+				  '&typeNames=Zoomstack_DistrictBuildings' +
 				  '&outputFormat=GEOJSON' +
 				  '&srsname=EPSG:27700' +
 				  '&filter=' + encodeURI('<Filter xmlns="http://www.opengis.net/fes/2.0" xmlns:gml="http://www.opengis.net/gml/3.2">\
