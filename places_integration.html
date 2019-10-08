@@ -65,7 +65,7 @@
 		<div id="wmsinfo" class="wmsinfo"></div>
 		<h2>Building details</h2>
 		<div id="wfsinfo" class="wfsinfo"></div>
-		<h2>Address</h2>
+		<h2>Nearest Address</h2>
 		<div id="placesinfo" class="placesinfo"></div>
 	</div>
 	<!-- End of main page content -->
@@ -190,8 +190,9 @@
 				var url = config.urls.wfs +
 				'?key='+ config.keys.datahub +
 				'&service=WFS' +
+        '&version=2.0.0' +
 				'&request=GetFeature' +
-				'&typeNames=TopographicArea' +
+				'&typeNames=Topography_TopographicArea' +
 				'&outputFormat=GEOJSON' +
 				'&srsname=EPSG:27700' +
 				'&filter=' + encodeURI('<Filter xmlns="http://www.opengis.net/fes/2.0" xmlns:gml="http://www.opengis.net/gml/3.2">\
@@ -292,6 +293,31 @@
 					wfsinfo.innerText = 'Building information not available at this zoom level, please zoom in.';
 				}
 			}
+      
+      /** The following section runs the address lookup using the clicked coordinate to perform a nearest address lookup within 1000m radius. **/
+      var geojsonFormat = new ol.format.GeoJSON();
+      var req = new XMLHttpRequest();
+      req.open("GET", config.urls.places + "/nearest?key=" + config.keys.places + "&radius=1000&point=" + event.coordinate[0] + "," + event.coordinate[1],true);
+      req.onload = function () {
+        if (req.status == 200) {
+          let response = JSON.parse(req.responseText);
+          if (typeof(response.results) != "undefined") {
+            atable = '<table>'
+            response.results.forEach(function(item, i){
+              atable += '<tr><td>UPRN</td><td>' + item.DPA.UPRN + '</td></tr>';
+              atable += '<tr><td>UDPRN</td><td>' + item.DPA.UDPRN + '</td></tr>';
+              atable += '<tr><td>Address</td><td>' + item.DPA.ADDRESS + '</td></tr>';
+              atable += '<tr><td colspan=3>&nbsp;</td></tr>';
+            })
+            atable += '</table>';
+          } else {
+            atable = 'We could not find an address for this area.';
+          }
+            placesinfo.innerHTML = atable;
+        }
+      }
+      req.send();
+      /** This comment completes the section running the address lookup. **/
 		});
 		
 		function wmsSelected(event) {
@@ -329,34 +355,6 @@
 				});
 				table += '</table>';
 				wfsinfo.innerHTML = table;
-				
-				/** The following section runs the address lookup using the building polygon we have selected. **/
-				var geojsonFormat = new ol.format.GeoJSON();
-				var geojsonFeature = geojsonFormat.writeFeatureObject(feature);
-				var req = new XMLHttpRequest();
-				req.open("POST", config.urls.places + "/polygon?key=" + config.keys.places,true);
-				req.setRequestHeader("Content-type", "application/json");
-				req.onload = function () {
-					if (req.status == 200) {
-						let response = JSON.parse(req.responseText);
-						if (typeof(response.results) != "undefined") {
-							atable = '<table><tr><th>Property</th><th>Value</th></tr>'
-							response.results.forEach(function(item, i){
-								atable += '<tr><td colspan=3>&nbsp;</td></tr>';
-								atable += '<tr><td>UPRN</td><td>' + item.DPA.UPRN + '</td></tr>';
-								atable += '<tr><td>UDPRN</td><td>' + item.DPA.UDPRN + '</td></tr>';
-								atable += '<tr><td>Address</td><td>' + item.DPA.ADDRESS + '</td></tr>';
-							})
-							atable += '</table>';
-						} else {
-							atable = 'We could not find an address for this polygon.';
-						}
-							placesinfo.innerHTML = atable;
-					}
-				}
-				req.send(JSON.stringify(geojsonFeature.geometry));
-				/** This comment completes the section running the address lookup. **/
-				
 			}
 		};
 		
