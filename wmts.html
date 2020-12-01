@@ -26,45 +26,80 @@
 	<script type="text/javascript" src="common/main.js"></script>
   
 	<script type="text/javascript">
+  /** Manually defined resolutions and matrix **/
 	
 		var projection = bng;
+    var map;
 		var resolutions = [896,448,224,112,56,28,14,7,3.5,1.75,0.875,0.4375,0.21875,0.109375];
 		var matrixIds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13];
 	  
 	  var basemap = new ol.layer.Tile({
-		source: new ol.source.WMTS({
-			attributions: '&copy; <a href="http://www.ordnancesurvey.co.uk/">Ordnance Survey</a>',
-			url: config.urls.wmts+'?key='+config.keys.datahub,
-			layer: 'Road_27700',
-			matrixSet: 'EPSG:27700',
-			format: 'image/png',
-			projection: projection,
-			tileGrid: new ol.tilegrid.WMTS({
-				/* We need to somehow define the origin. This is either done via explicit declaration, or derived by default from the extent as a function of the "top left corner". */
-				// origin: [-238375, 1376256],
-				// origin: ol.extent.getTopLeft(projection.getExtent()),
-				extent: projection.getExtent(),
-				resolutions: resolutions,
-				matrixIds: matrixIds
-			}),
-			style: 'default'
-		})
+      source: new ol.source.WMTS({
+        attributions: '&copy; <a href="http://www.ordnancesurvey.co.uk/">Ordnance Survey</a>',
+        url: config.urls.wmts+'?key='+config.keys.datahub,
+        layer: 'Road_27700',
+        matrixSet: 'EPSG:27700',
+        format: 'image/png',
+        projection: projection,
+        tileGrid: new ol.tilegrid.WMTS({
+          extent: projection.getExtent(),
+          resolutions: resolutions,
+          matrixIds: matrixIds
+        }),
+        style: 'default'
+      })
 	  })
 
-      var map = new ol.Map({
+    map = new ol.Map({
         layers: [
-			basemap
+          basemap
         ],
         target: 'map',
         view: new ol.View({
-			projection: projection,
-            center: [437290,115547],
-			resolutions: resolutions,
-			zoom: 10
+          projection: projection,
+          center: [437290,115547],
+          resolutions: resolutions,
+          zoom: 8
         })
       });
 		
 	</script>
+  
+  <script type="text/javascript">
+  /** "Automatically" defined resolutions and matrix **/
+/*
+  var parser = new ol.format.WMTSCapabilities();
+  var map;
+  
+  fetch(config.urls.wmts + '?key=' + config.keys.datahub + '&service=WMTS&request=GetCapabilities&version=2.0.0')
+  .then(response => response.text())
+  .then(text => {
+      var result = parser.read(text);
+      var options = ol.source.WMTS.optionsFromCapabilities(result, {
+          attributions: '&copy; <a href="http://www.ordnancesurvey.co.uk/">Ordnance Survey</a>',
+          layer: 'Road_27700',
+          matrixSet: 'EPSG:27700'
+      });
+
+      var source = new ol.source.WMTS(options);
+      var basemap = new ol.layer.Tile({ source: source });
+
+      // Initialize the map object.
+      map = new ol.Map({
+          layers: [
+            basemap
+          ],
+          target: 'map',
+          view: new ol.View({
+              projection: options.projection,
+              resolutions: options.tileGrid.getResolutions(),
+              center: [437290,115547],
+              zoom: 8
+          })
+      });
+  });
+*/
+  </script>
   
 </body>
 </html>

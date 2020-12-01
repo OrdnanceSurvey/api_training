@@ -26,33 +26,55 @@
 	<script type="text/javascript" src="common/main.js"></script>
   
 	<script type="text/javascript">
-	
+/** WMTS and WFS **/
+
 		var projection = bng;
-		var resolutions = [896,448,224,112,56,28,14,7,3.5,1.75,0.875,0.4375,0.21875,0.109375];
-		var matrixIds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13];
+    var map;
 		
 		var extent = projection.getExtent();
 		
-		var loader = function(url, features, index, count, rcount) {
-			var xhr = new XMLHttpRequest();
-			 xhr.open('GET', url + '&count=' + count + '&startIndex=' + index);
-			 var onError = function() {
-				features.removeLoadedExtent(extent);
-			 }
-			 xhr.onerror = onError;
-			 xhr.onload = function() {
-			   if (xhr.status == 200) {
-					rcount = JSON.parse(xhr.responseText).features.length;
-					features.addFeatures(features.getFormat().readFeatures(xhr.responseText));
-					if (rcount == count) {
-						loader(url, features, index+count, count, rcount);
-					}
-			   } else {
-				 onError();
-			   }
-			 }
-			 xhr.send();
-		}
+		function fetchWFS(url,features) {
+      var http = new XMLHttpRequest();
+      http.open("GET", url, true);
+      http.onreadystatechange = function()
+      {
+        if (http.readyState == 4 && http.status == 200)
+        {
+          var tmp_feature=features.getFormat().readFeatures(http.responseText);
+          var length=tmp_feature.length;
+          for(var cntr=0; cntr<length; cntr++) {
+             tmp_feature[cntr].id_=tmp_feature[cntr].get('TOID');
+          }
+          features.addFeatures(tmp_feature); 
+        }
+      };
+      http.send(null);
+    }
+    
+    var requests = new Array();
+		var loader = function(url, features) {
+        var count = 100;
+        var xhr = new XMLHttpRequest();
+         xhr.open('GET', url + '&resultType=hits');
+         var onError = function() {
+          console.log('Not even close')
+          features.removeLoadedExtent(extent);
+         }
+         xhr.onerror = onError;
+         xhr.onload = function() {
+          if (xhr.readyState == 4 && xhr.status == 200) {
+            var hits = JSON.parse(xhr.responseText).numberMatched;
+            var index = 0;
+            while (index < hits) {
+              requests.push(new fetchWFS(url + '&count=' + count + '&startIndex=' + index,features));
+              index = index + count
+            }
+          } else {
+            onError();
+          }
+        }
+        xhr.send();
+		};
 
 		var wfsSource = new ol.source.Vector({
 			format: new ol.format.GeoJSON({
@@ -60,80 +82,80 @@
 			}),
 			loader: function(extent, resolution, projection) {
 				 var url = config.urls.wfs +
-				  '?key='+ config.keys.datahub +
-				  '&service=WFS' +
-          '&version=2.0.0' +
-				  '&request=GetFeature' +
-				  '&typeNames=Zoomstack_DistrictBuildings' +
-				  '&outputFormat=GEOJSON' +
-				  '&srsname=EPSG:27700' +
-				  '&filter=' + encodeURI('<Filter xmlns="http://www.opengis.net/fes/2.0" xmlns:gml="http://www.opengis.net/gml/3.2">\
+				'?key='+ config.keys.datahub +
+				'&service=WFS' +
+        '&version=2.0.0' +
+				'&request=GetFeature' +
+				'&typeNames=Topography_TopographicArea' +
+				'&outputFormat=GEOJSON' +
+				'&srsname=EPSG:27700' +
+				'&filter=' + encodeURI('<Filter xmlns="http://www.opengis.net/fes/2.0" xmlns:gml="http://www.opengis.net/gml/3.2">\
+					<And>\
 						<BBOX>\
-						  <ValueReference>Shape</ValueReference>\
-						  <gml:Envelope>\
-							<gml:lowerCorner>'+extent[1]+' '+extent[0]+'</gml:lowerCorner>\
-							<gml:upperCorner>'+extent[3]+' '+extent[2]+'</gml:upperCorner>\
-						  </gml:Envelope>\
+							<PropertyName>SHAPE</PropertyName>\
+							<gml:Box xmlns:gml="http://www.opengis.net/gml" srsName="EPSG:27700">\
+                <gml:coordinates decimal="." cs="," ts=",">\
+								'+extent[0]+','+extent[1]+' '+extent[2]+','+extent[3]+'\
+                </gml:coordinates>\
+							</gml:Box>\
 						</BBOX>\
-					</Filter>');
-				var features = wfsSource;
-				wfsSource.clear();
-				var index = 0;
-				var count = 100;
-				var rcount = 0;
-				 loader(url, wfsSource, index, count, rcount);
+            <PropertyIsEqualTo>\
+							<PropertyName>DescriptiveGroup</PropertyName>\
+							<Literal>Building</Literal>\
+						</PropertyIsEqualTo>\
+					</And>\
+				</Filter>');
+				 loader(url, wfsSource);
 			   },
 			 strategy: ol.loadingstrategy.bbox,
 			 updateWhileInteracting: true
 		  })
 		
       var wfs = new ol.layer.Vector({
-		source: wfsSource,
-		style: new ol.style.Style({
+        source: wfsSource,
+        style: new ol.style.Style({
           stroke: new ol.style.Stroke({
             color: 'rgba(255, 0, 0, 1.0)',
             width: 2
           }),
-		  fill: new ol.style.Fill({
-			color: 'rgba(0,255,255,0.2)'
-		  })
+          fill: new ol.style.Fill({
+            color: 'rgba(0,255,255,0.2)'
+          })
         })
       });
 	  
-	  var basemap = new ol.layer.Tile({
-		source: new ol.source.WMTS({
-			attributions: '&copy; <a href="http://www.ordnancesurvey.co.uk/">Ordnance Survey</a>',
-			url: config.urls.wmts+'?key='+config.keys.datahub,
-			layer: 'Road_27700',
-			matrixSet: 'EPSG:27700',
-			format: 'image/png',
-			projection: projection,
-			tileGrid: new ol.tilegrid.WMTS({
-				/* We need to somehow define the origin. This is either done via explicit declaration, or derived by default from the extent as a function of the "top left corner". */
-				// origin: [-238375, 1376256],
-				// origin: ol.extent.getTopLeft(extent),
-				extent: extent,
-				resolutions: resolutions,
-				matrixIds: matrixIds
-			}),
-			style: 'default'
-		})
-	  })
+	  var parser = new ol.format.WMTSCapabilities();
+    
+    fetch(config.urls.wmts + '?key=' + config.keys.datahub + '&service=WMTS&request=GetCapabilities&version=2.0.0')
+    .then(response => response.text())
+    .then(text => {
+        var result = parser.read(text);
+        var options = ol.source.WMTS.optionsFromCapabilities(result, {
+            attributions: '&copy; <a href="http://www.ordnancesurvey.co.uk/">Ordnance Survey</a>',
+            layer: 'Light_27700',
+            matrixSet: 'EPSG:27700'
+        });
 
-      var map = new ol.Map({
-        layers: [
-			basemap,
-			wfs
-        ],
-        target: 'map',
-        view: new ol.View({
-			projection: projection,
-            center: [437290,115547],
-			resolutions: resolutions,
-			zoom: 10
-        })
-      });
-		
+        var source = new ol.source.WMTS(options);
+        var basemap = new ol.layer.Tile({ source: source });
+
+        // Initialize the map object.
+        map = new ol.Map({
+            layers: [
+              basemap,
+              wfs
+            ],
+            target: 'map',
+            view: new ol.View({
+                projection: options.projection,
+                resolutions: options.tileGrid.getResolutions(),
+                center: [437290,115547],
+                minZoom: 10,
+                maxZoom: 16,
+                zoom: 12
+            })
+        });
+    });
 	</script>
   
 </body>

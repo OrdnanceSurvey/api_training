@@ -76,33 +76,56 @@
 	<!-- Begin of Main Map creation scripts -->
 	<script type="text/javascript">
 		var projection = bng;
+    var extent = projection.getExtent();
+    var map;
 		var wmtsResolutions = [896,448,224,112,56,28,14,7,3.5,1.75,0.875,0.4375,0.21875,0.109375];
 		var wmtsMatrixIds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13];
-		var vtsResolutions = [39051.31776841338,19525.65888420669,9762.829442103344,4881.414721051672,2440.707360525836,1220.353680262918,610.176840131459,305.0884200657295,152.54421003286475,76.27210501643238,38.13605250821619,19.068026254108094,9.534013127054047,4.767006563527024,2.383503281763512,1.191751640881756,0.595875820440878,0.297937910220439,0.1489689551102195,0.07448447755510974];
-		var vtsMatrixIds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19];
-		var vtsOrigin = [-9597137.348713825,4470073.533885086];
-		var tiles =  config.urls.vts+'/tile/{z}/{y}/{x}.pbf';
-		var vtsExtent = [5517.69000000041,5177.230000000447,655672.1661999999,1220308.960000001];
+    var vtsResolutions = [3584,1792,896,448,224,112,56,28,14,7,3.5,1.75,0.875,0.4375,0.21875,0.109375];
+		var vtsMatrixIds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
+		var vtsOrigin = [-238375,1376256];
+		var vtsTiles =  config.urls.vts+'/tile/{z}/{y}/{x}.pbf';
+		var vtsExtent = [-238375,0,900000,1376256];
+    var requests = new Array();
 		
-		var loader = function(url, features, index, count, rcount) {
-			var xhr = new XMLHttpRequest();
-			 xhr.open('GET', url + '&count=' + count + '&startIndex=' + index);
-			 var onError = function() {
-				features.removeLoadedExtent(extent);
-			 }
-			 xhr.onerror = onError;
-			 xhr.onload = function() {
-			   if (xhr.status == 200) {
-					rcount = JSON.parse(xhr.responseText).features.length;
-					features.addFeatures(features.getFormat().readFeatures(xhr.responseText));
-					if (rcount == count) {
-						loader(url, features, index+count, count, rcount);
-					}
-			   } else {
-				 onError();
-			   }
-			 }
-			 xhr.send();
+    function fetchWFS(url,features) {
+      var http = new XMLHttpRequest();
+      http.open("GET", url, true);
+      http.onreadystatechange = function()
+      {
+        if (http.readyState == 4 && http.status == 200)
+        {
+          var tmp_feature=features.getFormat().readFeatures(http.responseText);
+          var length=tmp_feature.length;
+          for(var cntr=0; cntr<length; cntr++) {
+             tmp_feature[cntr].id_=tmp_feature[cntr].get('TOID');
+          }
+          features.addFeatures(tmp_feature); 
+        }
+      };
+      http.send(null);
+    }
+    
+		var wfsLoader = function(url, features) {
+        var count = 100;
+        var xhr = new XMLHttpRequest();
+         xhr.open('GET', url + '&resultType=hits');
+         var onError = function() {
+          features.removeLoadedExtent(extent);
+         }
+         xhr.onerror = onError;
+         xhr.onload = function() {
+          if (xhr.readyState == 4 && xhr.status == 200) {
+            var hits = JSON.parse(xhr.responseText).numberMatched;
+            var index = 0;
+            while (index < hits) {
+              requests.push(new fetchWFS(url + '&count=' + count + '&startIndex=' + index,features));
+              index = index + count
+            }
+          } else {
+            onError();
+          }
+        }
+        xhr.send();
 		};
 		
 		xmlhttp=new XMLHttpRequest();
@@ -110,9 +133,9 @@
 		xmlhttp.send();
 		var style = JSON.parse(xmlhttp.responseText);
 		
-		var vtssource = new ol.source.VectorTile({
+		var vtsSource = new ol.source.VectorTile({
 			format: new ol.format.MVT(),
-			url: tiles + '?key=' + config.keys.datahub,
+			url: vtsTiles + '?key=' + config.keys.datahub,
 			attributions: '&copy; <a href="http://www.ordnancesurvey.co.uk/">Ordnance Survey</a>',
 			projection: projection,
 			tileGrid: new ol.tilegrid.TileGrid({
@@ -124,9 +147,9 @@
 		});
 		
 		var vts = new ol.layer.VectorTile({
-			maxResolution: 2440.707360525836,
-			minResolution: 1.191751640881756,
-			source: vtssource
+			maxResolution: 448,
+			minResolution: 1.75,
+			source: vtsSource
 		});
 		
 		style.layers.forEach(layer => {
@@ -134,32 +157,53 @@
 			if(layer.paint && layer.paint['icon-color']) {
 				layer.paint['icon-color'] = layer.paint['icon-color'].replace(',0)', ',1)');
 			};
-			if (layer['source-layer'] != 'district_buildings' &&
-			layer['source-layer'] != 'local_buildings' &&
-			layer['source-layer'] != 'surfacewater (National)' &&
-			layer['source-layer'] != 'surfacewater (Regional)' &&
-			layer['source-layer'] != 'surfacewater (Local)' &&
-			layer['source-layer'] != 'foreshore' &&
-			layer['source-layer'] != 'waterlines (National)' &&
-			layer['source-layer'] != 'waterlines (Regional)' &&
-			layer['source-layer'] != 'waterlines (District)' &&
-			layer['source-layer'] != 'waterlines (Local)') {
-				delete style.layers[style.layers.indexOf(layer)];
-			} else {
-				if(layer['source-layer'] == 'district_buildings' ||
-				layer['source-layer'] == 'local_buildings') {
-					if(layer.paint && layer.paint['fill-color']) {
-						layer.paint['fill-color'] = '#00FF00';
-					}
-				}
-				if(layer['source-layer'] == 'surfacewater (National)' ||
-				layer['source-layer'] == 'surfacewater (Regional)' ||
-				layer['source-layer'] == 'surfacewater (Local)') {
-					if(layer.paint && layer.paint['fill-color']) {
-						layer.paint['fill-color'] = '#00FFFF';
-					}
-				}
-			}
+      var l = layer['id'];
+      if (l != 'OS/District_buildings/1' &&
+      l != 'OS/Local_buildings/1' &&
+      l != 'OS/TopographicArea_2/Building/1' &&
+      l != 'OS/TopographicArea_1/Building/1' &&
+      l != 'OS/Surfacewater/Local' &&
+      l != 'OS/Surfacewater/National/1' &&
+      l != 'OS/Surfacewater/Regional/1' &&
+      l != 'OS/TopographicArea_1/Tidal Water' &&
+      l != 'OS/TopographicArea_1/Inland Water' &&
+      l != 'OS/TopographicArea_1/Foreshore' &&
+      l != 'OS/Foreshore/1' &&
+      l != 'OS/Waterlines/District' &&
+      l != 'OS/Waterlines/Local' &&
+      l != 'OS/Waterlines/Local_1' &&
+      l != 'OS/Waterlines/National' &&
+      l != 'OS/Waterlines/Regional' &&
+      l != 'OS/Waterlines/Regional_1' &&
+      l != 'OS/Waterlines/MHW_1' &&
+      l != 'OS/Waterlines/MLW' &&
+      l != 'OS/Waterlines/MLW_1' &&
+      l != 'OS/TopographicLine/Mean High Water' &&
+      l != 'OS/TopographicLine/Mean Low Water' &&
+      l != 'OS/TopographicLine/Inland water Line' &&
+      l != 'OS/Waterlines/MLW_1' &&
+      l != 'OS/Waterlines/MHW') {
+        delete style.layers[style.layers.indexOf(layer)];
+      } else {
+        if(l == 'OS/District_buildings/1' ||
+          l == 'OS/Local_buildings/1' ||
+          l == 'OS/TopographicArea_2/Building/1' ||
+          l == 'OS/TopographicArea_1/Building/1') {
+          if(layer.paint && layer.paint['fill-color']) {
+            layer.paint['fill-color'] = '#000000';
+          }
+        }
+        if(l == 'OS/Surfacewater/Local' ||
+          l == 'OS/Surfacewater/National/1' ||
+          l == 'OS/Surfacewater/Regional/1' ||
+          l == 'OS/TopographicArea_1/Tidal Water' ||
+          l == 'OS/TopographicArea_1/Inland Water' ||
+          l == 'OS/TopographicArea_1/Foreshore') {
+          if(layer.paint && layer.paint['fill-color']) {
+            layer.paint['fill-color'] = '#00FFFF';
+          }
+        }
+      }
 		});
 		style.layers = style.layers.filter(function (el) {
 			return el != null;
@@ -185,7 +229,7 @@
 				dataProjection: 'EPSG:27700'
 			}),
 			loader: function(extent, resolution, projection) {
-				var url = config.urls.wfs +
+				 var url = config.urls.wfs +
 				'?key='+ config.keys.datahub +
 				'&service=WFS' +
         '&version=2.0.0' +
@@ -195,29 +239,26 @@
 				'&srsname=EPSG:27700' +
 				'&filter=' + encodeURI('<Filter xmlns="http://www.opengis.net/fes/2.0" xmlns:gml="http://www.opengis.net/gml/3.2">\
 					<And>\
-						<PropertyIsEqualTo>\
+						<BBOX>\
+							<PropertyName>SHAPE</PropertyName>\
+							<gml:Box xmlns:gml="http://www.opengis.net/gml" srsName="EPSG:27700">\
+                <gml:coordinates decimal="." cs="," ts=",">\
+								'+extent[0]+','+extent[1]+' '+extent[2]+','+extent[3]+'\
+                </gml:coordinates>\
+							</gml:Box>\
+						</BBOX>\
+            <PropertyIsEqualTo>\
 							<PropertyName>DescriptiveGroup</PropertyName>\
 							<Literal>Building</Literal>\
 						</PropertyIsEqualTo>\
-						<BBOX>\
-							<ValueReference>Shape</ValueReference>\
-							<gml:Envelope>\
-								<gml:lowerCorner>'+extent[1]+' '+extent[0]+'</gml:lowerCorner>\
-								<gml:upperCorner>'+extent[3]+' '+extent[2]+'</gml:upperCorner>\
-							</gml:Envelope>\
-						</BBOX>\
 					</And>\
 				</Filter>');
 				var features = wfsSource;
-				wfsSource.clear();
-				var index = 0;
-				var count = 100;
-				var rcount = 0;
-				loader(url, wfsSource, index, count, rcount);
+				wfsLoader(url, wfsSource);
 			},
-			strategy: ol.loadingstrategy.bbox,
-			updateWhileInteracting: true
-		});
+      strategy: ol.loadingstrategy.bbox,
+      updateWhileInteracting: true
+    })
 		
 		var wfs = new ol.layer.Vector({
 			source: wfsSource,
@@ -251,7 +292,7 @@
 			})
 		});
 		
-		var map = new ol.Map({
+		map = new ol.Map({
 			layers: [
 				basemap,
 				defra,
@@ -291,7 +332,7 @@
 				}
 			}
 		});
-		
+
 		function wmsSelected(event) {
 			wmsinfo.innerHTML = '';
 			var viewResolution = /** @type {number} */ (map.getView().getResolution());
@@ -331,6 +372,7 @@
 		
 		function closeModal() {
 			select.getFeatures().clear();
+      wfsinfo.innerHTML = '';
 			document.getElementById('info').classList.add('hidden');
 		};
 		

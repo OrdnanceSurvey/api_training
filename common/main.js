@@ -1,18 +1,19 @@
 
 
 var config = {
-/** Edit this as appropriate, adding your own keys for the services. The OS Names and OS Places keys remain valid until 25th June 2019. **/
+/** Edit this as appropriate, adding your own keys for the services.**/
 	"keys": {
 		"datahub": "",
-		"names": "",
 		"places": ""
 	},
 	"urls" : {
-		"wmts" : "https://osdatahubapi.os.uk/OSMapsAPI/wmts/v1",
-		"wfs" : "https://osdatahubapi.os.uk/OSFeaturesAPI/wfs/v1",
-		"vts" : "https://osdatahubapi.os.uk/OSVectorTileAPI/vts/v1",
-		"names" : "https://api.ordnancesurvey.co.uk/opennames/v1",
-		"places" : "https://api.ordnancesurvey.co.uk/places/v1/addresses"
+		"wmts" : "https://api.os.uk/maps/raster/v1/wmts",
+    "zxy" : "https://api.os.uk/maps/raster/v1/zxy",
+		"wfs" : "https://api.os.uk/features/v1/wfs",
+		"vts" : "https://api.os.uk/maps/vector/v1/vts/",
+    "linked": "https://api.os.uk/search/links/v1/",
+		"names" : "https://api.os.uk/search/names/v1/",
+		"places" : "https://api.ordnancesurvey.co.uk/places/v1/addresses/"
 	},
 /** End of Key and URL configuration **/
 /** DO NOT EDIT THIS SECTION UNLESS YOU ARE 100% SURE OF WHAT YOU'RE DOING! **/

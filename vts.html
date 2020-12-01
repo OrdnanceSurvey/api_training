@@ -25,15 +25,20 @@
 	<script type="text/javascript" src="common/lib/proj4.js"></script>
 	<script type="text/javascript" src="common/lib/ol-mapbox-style/olms.js"></script>
 	<script type="text/javascript" src="common/main.js"></script>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.16/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.16/"></script>
+
 
 	<script type="text/javascript">
+/** Open Layers - manually defined. **/
 	
 		var projection = bng;
-		var resolutions = [39051.31776841338,19525.65888420669,9762.829442103344,4881.414721051672,2440.707360525836,1220.353680262918,610.176840131459,305.0884200657295,152.54421003286475,76.27210501643238,38.13605250821619,19.068026254108094,9.534013127054047,4.767006563527024,2.383503281763512,1.191751640881756,0.595875820440878,0.297937910220439,0.1489689551102195,0.07448447755510974];
-		var matrixIds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19];
-		var origin = [-9597137.348713825,4470073.533885086];
+    var map;
+    var resolutions = [3584,1792,896,448,224,112,56,28,14,7,3.5,1.75,0.875,0.4375,0.21875,0.109375];
+		var matrixIds = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
+		var origin = [-238375,1376256];
 		var tiles =  config.urls.vts+'/tile/{z}/{y}/{x}.pbf';
-		var extent = [5517.69000000041,5177.230000000447,655672.1661999999,1220308.960000001];
+		var extent = [-238375,0,900000,1376256];
 	  
 		var vts = new ol.layer.VectorTile({
 			source: new ol.source.VectorTile({
@@ -54,31 +59,34 @@
 		xmlhttp.open("GET", config.urls.vts+'/resources/styles?key='+config.keys.datahub, false);
 		xmlhttp.send();
 		var style = JSON.parse(xmlhttp.responseText);
-		
+
+/** Recommended by a number of VTS in Open Layers tutorials. No noticeable difference for OS VTS. **/
+/*
 		style.layers.forEach(layer => {
 			if(layer.paint && layer.paint['icon-color']) {
 				layer.paint['icon-color'] = layer.paint['icon-color'].replace(',0)', ',1)');
 			}
 		});
+*/
 		
 		var styleFn = olms.stylefunction(vts, style, 'esri', resolutions);
 
-      var map = new ol.Map({
-        layers: [
-			vts
-        ],
-        target: 'map',
-        view: new ol.View({
-			projection: projection,
-            center: [437290,115547],
-			resolutions: resolutions,
-			minZoom: 5,
-			maxZoom: 15,
-			zoom: 10
-        })
-      });
-		
+    map = new ol.Map({
+      layers: [
+        vts
+      ],
+      target: 'map',
+      view: new ol.View({
+        projection: projection,
+        center: [437290,115547],
+        resolutions: resolutions,
+        minZoom: 5,
+        maxZoom: 15,
+        zoom: 10
+      })
+    });
+
 	</script>
-  
+
 </body>
 </html>
